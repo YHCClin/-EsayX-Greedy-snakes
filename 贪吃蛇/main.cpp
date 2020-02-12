@@ -10,6 +10,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <vector>
+#include <fstream>
 #include <string>
 #include <Windows.h>
 #include <time.h>
@@ -34,6 +35,10 @@ int SPEED = NORMAL;
 int CUR_MAX_SCORE = 0;
 int SCORE = 0;
 char score[10] = "";
+
+// 当前关卡
+int LEVEL = 1;
+
 char *itoChar(int sc)
 {
 	sprintf(score, "%d", sc);
@@ -48,6 +53,7 @@ typedef enum ch {
 	right = 77,
 	pause = 112,
 	speed = 115,
+	choose = 99,
 }CH;// 绑定键盘映射
 
 // 坐标结构体
@@ -81,17 +87,49 @@ public:
 	}
 };
 Food food;
+
+// 障碍物类
+class Obstacal {
+public:
+	// 用矩形来表示障碍物{x1,y1,x2,y2}
+	std::vector<std::vector<int>> Obs = { {100, 150, 500, 170},{290, 170, 310, 430},{100, 430, 500, 450} };
+	Obstacal(std::vector<std::vector<int>>& obs){
+		Obs = obs;
+	}
+};
+// 关卡
+std::vector<std::vector<int>> l1 = { {100, 150, 500, 170},{290, 170, 310, 430},{100, 430, 500, 450} };
+Obstacal lev1 = Obstacal(l1);
+std::vector<std::vector<int>> l2 = { {100, 150, 500, 170},{100,150,120,450}};
+Obstacal lev2 = Obstacal(l2);
+std::vector<Obstacal> Level = { lev1,lev2 };
+
+
+
+
+// 初始化
 void InitSnake();
-void MoveSnake(Food& food);
+
+// 绘图函数
 void DrawSnake();
-void ChangeDir();
 void DrawFood(Food& food);
 void DrawScore();
-void DrawBoundary();
 void DrawGameStatus(char *status);
 void DrawGameData();
+void DrawObs();
+void Draw(); // 集成显示函数
 
-void Draw();
+// 用于数据保存
+void SavePlayerData();
+
+// 用于过程处理
+void MoveSnake(Food& food);
+void ChangeDir();
+void IsCollision();
+void UpdateFood(Food &food);
+
+// 背景图片
+IMAGE bk_img;
 
 int main()
 {
@@ -101,7 +139,7 @@ int main()
 		while (!_kbhit())
 		{
 			BeginBatchDraw();
-			setbkcolor(WHITE);
+			//setbkcolor(WHITE);
 			Draw();
 			FlushBatchDraw();
 			//saveimage("F:\Python\bk_img.png");
@@ -110,7 +148,9 @@ int main()
 		}
 		ChangeDir();
 	}
-	mciSendString("close all", 0, 0, 0);
+
+	mciSendString("close all", 0, 0, 0); // 关闭所有多媒体文件
+
 	getchar();
 	EndBatchDraw();
 	closegraph();
@@ -118,7 +158,11 @@ int main()
 
 void InitSnake()
 {
-	initgraph(800, 600);
+	loadimage(&bk_img,"bk_img.png");
+	int width = bk_img.getwidth();
+	int height = bk_img.getheight();
+	initgraph(width, height);
+
 	// 载入背景音乐
 	mciSendString("open bkmusic.mp3 alias bk",0,0,0);
 	mciSendString("play bk repeat",0,0,0);
@@ -127,7 +171,6 @@ void InitSnake()
 	SNAKE.sbody[0].x = 0;
 	SNAKE.sbody[0].y = 0;
 	SNAKE.dir = down;
-	//SNAKE.length = 3;
 	setbkcolor(WHITE);
 }
 
@@ -158,38 +201,12 @@ void MoveSnake(Food &food)
 	default:
 		break;
 	}
-	bool isCollision = false;
-	if (SNAKE.sbody[0].x == 600 || SNAKE.sbody[0].y == 600 || SNAKE.sbody[0].x < 0 || SNAKE.sbody[0].y < 0) // 边界碰撞检测
-	{
-		isCollision = true;
-	}
-	else if(SNAKE.length > 2)
-	{
-		for (int i = 3; i < SNAKE.length; i++)
-		{
-			if (SNAKE.sbody[0].x == SNAKE.sbody[i].x && SNAKE.sbody[0].y == SNAKE.sbody[i].y)
-				isCollision = true;
-		}
-	}
-	// 碰撞后复原
-	if (isCollision)
-	{
-		mciSendString("play dead from 0", 0, 0, 0);
-		SNAKE = Snake();
-		SNAKE.dir = down;
-		char status[10] = "GAME OVER";
-		DrawGameStatus(status);
-		FlushBatchDraw();
-		while (!_kbhit());
-		SCORE = 0;
-	}
-		// 吃食物
+	IsCollision();
+	// 吃食物
 	if (SNAKE.sbody[0].x == food.coor.x && SNAKE.sbody[0].y == food.coor.y)
 	{
 		mciSendString("play eat from 0", 0, 0, 0);
-		srand((unsigned int)time(NULL));
-		food.coor.x = (rand() % (600 / SNAKE_SIZE)) * 10;
-		food.coor.y = (rand() % (600 / SNAKE_SIZE)) * 10;
+		UpdateFood(food);
 		int X = SNAKE.sbody[SNAKE.length - 1].x;
 		int Y = SNAKE.sbody[SNAKE.length - 1].y;
 		SNAKE.sbody.push_back(Coor(X, Y));
@@ -281,6 +298,22 @@ void ChangeDir()
 			break;
 		}
 		break;
+	case choose:
+		switch (_getch())
+		{
+		case 49:
+			LEVEL = 0;
+			SNAKE = Snake();
+			SNAKE.dir = down;
+			break;
+		case 50:
+			LEVEL = 1;
+			SNAKE = Snake();
+			SNAKE.dir = down;
+			break;
+		default:
+			break;
+		}
 	default:
 		break;
 	}
@@ -296,25 +329,11 @@ void DrawFood(Food &food)
 
 void DrawScore()
 {
-	settextcolor(BLACK);
-	settextstyle(15, 15, "黑体");
-	outtextxy(610, 10, "SCORE: ");
 	settextcolor(RGB(rand() % 256, rand() % 256, rand() % 256));
 	settextstyle(60, 20, "黑体");
 	outtextxy(620, 35, itoChar(SCORE));
 }
 
-void DrawBoundary()
-{
-	setlinecolor(BLACK);
-	setlinestyle(PS_SOLID, 2);
-	line(600, 0, 600, 600);
-	line(600, 100, 800, 100);
-	line(0, 0, 800, 0);
-	line(0, 0, 0, 600);
-	line(0, 600, 600, 600);
-	line(600, 400, 800, 400);
-}
 
 void DrawGameStatus(char *status)
 {
@@ -323,28 +342,118 @@ void DrawGameStatus(char *status)
 	outtextxy(210, 270, status);
 	settextstyle(30, 15, "黑体");
 	outtextxy(135, 335, "PRESS ANYKEY TO RESUME");
-	Draw();
+	DrawScore();
+	DrawGameData();
 }
 
 void Draw()
 {
+	putimage(0, 0, &bk_img);
 	MoveSnake(food);
 	DrawFood(food);
-	DrawBoundary();
+	//DrawBoundary();
 	DrawScore();
 	DrawGameData();
+	DrawObs();
 }
 
 void DrawGameData()
 {
 	settextcolor(BLACK);
-	settextstyle(15, 15, "黑体");
-	outtextxy(610, 110, "REAL TIME: ");
+	setbkmode(TRANSPARENT);
 	settextstyle(10, 10, "黑体");
-	outtextxy(610, 140, "Lenght: ");
 	outtextxy(690, 140, itoChar(SNAKE.length));
-	outtextxy(610, 170, "MAX_SCORE: ");
-	outtextxy(720, 170, itoChar(CUR_MAX_SCORE));
-	outtextxy(610, 200, "CUR_SPEED(ms): ");
-	outtextxy(750, 200, itoChar(SPEED));
+	outtextxy(720, 170, itoChar(SPEED));
+}
+
+void DrawHelp()
+{
+
+}
+
+// 保存本轮游戏最终数据
+void SavePlayerData()
+{
+	//std::ofstream GameData;
+	//GameData.open("GameData.dat", std::ios::app);
+}
+
+// 碰撞检测函数
+void IsCollision()
+{
+	bool isCollision = false;
+	int x = SNAKE.sbody[0].x, y = SNAKE.sbody[0].y;
+	if (x == 600 || y == 600 || x < 0 || y < 0) // 边界碰撞检测
+	{
+		isCollision = true;
+	} 
+	else if (SNAKE.length > 2) // 自身碰撞检测
+	{
+		for (int i = 3; i < SNAKE.length; i++)
+		{
+			if (x == SNAKE.sbody[i].x && y == SNAKE.sbody[i].y)
+			{
+				isCollision = true;
+				break;
+			}
+		}
+	}
+	 // 障碍物碰撞检测
+	{	
+		int x_ = x + (SNAKE_SIZE / 2), y_ = y + (SNAKE_SIZE / 2);
+		for (size_t i = 0; i < Level[LEVEL].Obs.size(); i++)
+		{
+			if (x_ > Level[LEVEL].Obs[i][0] && y_ > Level[LEVEL].Obs[i][1] && x_ < Level[LEVEL].Obs[i][2] && y_ < Level[LEVEL].Obs[i][3])
+			{
+				isCollision = true;
+				break;
+			}
+		}
+	}
+	// 碰撞后处理
+	if (isCollision)
+	{
+		mciSendString("play dead from 0", 0, 0, 0);
+		SNAKE = Snake();
+		SNAKE.dir = down;
+		char status[10] = "GAME OVER";
+		cleardevice();
+		putimage(0, 0, &bk_img);
+		DrawGameStatus(status);
+		FlushBatchDraw();
+		while (!_kbhit()); // 按任意键继续
+		SCORE = 0;
+	}
+}
+
+// 更新食物位置
+void UpdateFood(Food &food)
+{
+	while (true)
+	{
+		srand((unsigned int)time(NULL));
+		food.coor.x = (rand() % (600 / SNAKE_SIZE)) * 10;
+		food.coor.y = (rand() % (600 / SNAKE_SIZE)) * 10;
+		// 食物不能在障碍物上
+		bool isOk = true;
+		for (size_t i = 0; i < Level[LEVEL].Obs.size(); i++)
+		{
+			if (food.coor.x+5 >= Level[LEVEL].Obs[i][0] && food.coor.y+5 >= Level[LEVEL].Obs[i][1] && food.coor.x+5 <= Level[LEVEL].Obs[i][2] && food.coor.y+5 <= Level[LEVEL].Obs[i][3])
+			{
+				isOk = false;
+				break;
+			}
+		}
+		if (isOk) break;
+	}
+}
+
+
+void DrawObs()
+{
+	setfillcolor(BLACK);
+	for (size_t i = 0; i < Level[LEVEL].Obs.size(); i++)
+	{
+		fillrectangle(Level[LEVEL].Obs[i][0], Level[LEVEL].Obs[i][1], Level[LEVEL].Obs[i][2], Level[LEVEL].Obs[i][3]);
+	}
 }
