@@ -40,7 +40,7 @@ int SCORE = 0;
 char score[10] = "";
 
 // 当前关卡
-int LEVEL = 1;
+int LEVEL = 0;
 
 // 用于运行时载入历史分数数据
 std::multimap<int, std::string, std::greater<int>> History;
@@ -114,6 +114,7 @@ std::vector<Obstacal> Level = { lev1,lev2 };
 void InitSnake();
 
 // 绘图函数
+void DrawBegin();
 void DrawSnake();
 void DrawFood(Food& food);
 void DrawScore();
@@ -138,6 +139,7 @@ IMAGE bk_img;
 
 int main()
 {
+	DrawBegin();
 	InitSnake();
 	while (1)
 	{
@@ -503,4 +505,14 @@ void DrawObs()
 	{
 		fillrectangle(Level[LEVEL].Obs[i][0], Level[LEVEL].Obs[i][1], Level[LEVEL].Obs[i][2], Level[LEVEL].Obs[i][3]);
 	}
+}
+
+void DrawBegin()
+{
+	IMAGE begin;
+	loadimage(&begin, "begin.png");
+	initgraph(begin.getwidth(), begin.getheight());
+	putimage(0, 0, &begin);
+	while (!_kbhit());
+	closegraph();
 }
