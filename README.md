@@ -2,8 +2,10 @@
 
 ---
 
-![开始界面](https://hexoblog-1257022783.cos.ap-chengdu.myqcloud.com/GreedySnake/begin.PNG)
+
+
+![开始界面](C:\Users\User\Desktop\begin.PNG)
 
 
 
-![游戏界面](https://hexoblog-1257022783.cos.ap-chengdu.myqcloud.com/GreedySnake/mainpage.PNG)
+![游戏界面](C:\Users\User\Desktop\mainpage.PNG)
