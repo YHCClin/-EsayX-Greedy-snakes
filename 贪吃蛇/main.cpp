@@ -12,16 +12,19 @@
 #include <vector>
 #include <fstream>
 #include <string>
+#include <sstream>
 #include <Windows.h>
 #include <time.h>
 #include <conio.h> // 键盘
 #include <stdlib.h>
 #include <cmath>
+#include <map>
 #include <graphics.h>
 
 // 引入多媒体设备接口
 #include <mmsystem.h>
 #pragma comment(lib,"winmm.lib")
+
 
 constexpr auto SNAKE_MAX_LEN = 100;
 constexpr auto SNAKE_SIZE = 10;
@@ -38,6 +41,9 @@ char score[10] = "";
 
 // 当前关卡
 int LEVEL = 1;
+
+// 用于运行时载入历史分数数据
+std::multimap<int, std::string, std::greater<int>> History;
 
 char *itoChar(int sc)
 {
@@ -104,9 +110,6 @@ std::vector<std::vector<int>> l2 = { {100, 150, 500, 170},{100,150,120,450}};
 Obstacal lev2 = Obstacal(l2);
 std::vector<Obstacal> Level = { lev1,lev2 };
 
-
-
-
 // 初始化
 void InitSnake();
 
@@ -117,10 +120,12 @@ void DrawScore();
 void DrawGameStatus(char *status);
 void DrawGameData();
 void DrawObs();
+void DrawHistory();
 void Draw(); // 集成显示函数
 
 // 用于数据保存
 void SavePlayerData();
+void LoadPlayerData();
 
 // 用于过程处理
 void MoveSnake(Food& food);
@@ -162,12 +167,15 @@ void InitSnake()
 	int width = bk_img.getwidth();
 	int height = bk_img.getheight();
 	initgraph(width, height);
-
+	// 载入历史数据
+	LoadPlayerData();
 	// 载入背景音乐
 	mciSendString("open bkmusic.mp3 alias bk",0,0,0);
 	mciSendString("play bk repeat",0,0,0);
 	mciSendString("open collision.mp3 alias dead", 0, 0, 0);
 	mciSendString("open eat.mp3 alias eat", 0, 0, 0);
+	mciSendString("open window.mp3 alias win", 0, 0, 0);
+
 	SNAKE.sbody[0].x = 0;
 	SNAKE.sbody[0].y = 0;
 	SNAKE.dir = down;
@@ -362,20 +370,54 @@ void DrawGameData()
 	settextcolor(BLACK);
 	setbkmode(TRANSPARENT);
 	settextstyle(10, 10, "黑体");
-	outtextxy(690, 140, itoChar(SNAKE.length));
+	outtextxy(720, 140, itoChar(SNAKE.length));
 	outtextxy(720, 170, itoChar(SPEED));
-}
-
-void DrawHelp()
-{
-
+	outtextxy(720, 202, itoChar(LEVEL + 1));
+	DrawHistory();
 }
 
 // 保存本轮游戏最终数据
 void SavePlayerData()
 {
-	//std::ofstream GameData;
-	//GameData.open("GameData.dat", std::ios::app);
+	std::ofstream GameData;
+	GameData.open("GameData.dat", std::ios::app);
+	char username[10];
+	mciSendString("play win form 0", 0, 0, 0);
+	InputBox(username,10,"input your name");
+	GameData << username << " " << SCORE << std::endl;
+	GameData.close();
+}
+
+// 载入历史游戏数据
+void LoadPlayerData()
+{
+	std::ifstream GameData;
+	GameData.open("GameData.dat", std::ios::in);
+	std::string line;
+	std::string usr;int score;
+	while (std::getline(GameData, line))
+	{
+		std::istringstream record(line);
+		record >> usr;
+		record >> score;
+		History.insert(std::pair<int, std::string>(score, usr));
+	}
+}
+
+void DrawHistory()
+{
+	settextcolor(BLACK);
+	settextstyle(15,15,"黑体");
+	outtextxy(610, 240, "History:");
+	int y = 270;
+	settextstyle(10, 10, "黑体");
+	for (auto iter = History.begin(); iter != History.end() && y <500; iter++)
+	{
+		char *u = (char*)(iter->second).c_str();
+		outtextxy(630, y, u);
+		outtextxy(700, y, itoChar(iter->first));
+		y += 30;
+	}
 }
 
 // 碰撞检测函数
@@ -420,7 +462,10 @@ void IsCollision()
 		cleardevice();
 		putimage(0, 0, &bk_img);
 		DrawGameStatus(status);
+		SavePlayerData();
 		FlushBatchDraw();
+		History.clear();
+		LoadPlayerData();
 		while (!_kbhit()); // 按任意键继续
 		SCORE = 0;
 	}
@@ -438,7 +483,9 @@ void UpdateFood(Food &food)
 		bool isOk = true;
 		for (size_t i = 0; i < Level[LEVEL].Obs.size(); i++)
 		{
-			if (food.coor.x+5 >= Level[LEVEL].Obs[i][0] && food.coor.y+5 >= Level[LEVEL].Obs[i][1] && food.coor.x+5 <= Level[LEVEL].Obs[i][2] && food.coor.y+5 <= Level[LEVEL].Obs[i][3])
+			if (food.coor.x+(SNAKE_SIZE/2) >= Level[LEVEL].Obs[i][0] && food.coor.y\
+				+ (SNAKE_SIZE / 2) >= Level[LEVEL].Obs[i][1] && food.coor.x+ (SNAKE_SIZE / 2)\
+				<= Level[LEVEL].Obs[i][2] && food.coor.y+ (SNAKE_SIZE / 2) <= Level[LEVEL].Obs[i][3])
 			{
 				isOk = false;
 				break;
